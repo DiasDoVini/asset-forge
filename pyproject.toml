@@ -1,0 +1,29 @@
+[project]
+name = "asset-forge"
+version = "0.1.0"
+description = "Gerador local de assets 2D/3D, áudio, VFX e vídeo para jogos (monorepo)"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = ["forge-core", "forge-2d", "forge-3d", "forge-audio", "forge-vfx", "forge-video", "forge-pixel"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+forge-core = { workspace = true }
+forge-2d = { workspace = true }
+forge-3d = { workspace = true }
+forge-audio = { workspace = true }
+forge-vfx = { workspace = true }
+forge-video = { workspace = true }
+forge-pixel = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages"]
+asyncio_mode = "auto"

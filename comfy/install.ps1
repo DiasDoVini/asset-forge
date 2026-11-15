@@ -1,0 +1,97 @@
+﻿# Installs (or updates) the dedicated Asset Forge ComfyUI instance.
+#
+#   powershell -ExecutionPolicy Bypass -File comfy\install.ps1
+#
+# Idempotent: re-running checks out the pinned versions again and re-syncs packages.
+# Layout: comfy\instance\ComfyUI (git checkout) + comfy\instance\ComfyUI\.venv (Python 3.12).
+# Models are NOT duplicated: extra_model_paths.yaml points at the Comfy Desktop shared models folder.
+
+# ComfyUI source: the native Hunyuan3D 2.1 paint nodes (Comfy-Org/ComfyUI PR #15020, torch-only - no compiled
+# CUDA extensions, works on RTX 50xx) are not merged upstream yet, so the instance pins the PR branch.
+# Once the PR is released, switch back to an official tag: -ComfyRemote origin -ComfyRef vX.Y.Z
+param(
+    [string]$ComfyRemote = "https://github.com/jethac/ComfyUI.git",
+    [string]$ComfyRef = "2d1c6623efd536e2bfc960eeeedd571ce5df68dd",  # jethac:hunyuan21-paint (base v0.34.0+62)
+    [string]$TorchIndex = "https://download.pytorch.org/whl/cu130",  # Blackwell (sm_120) needs CUDA >= 12.8
+    [string]$SharedModels = "$env:LOCALAPPDATA\Comfy-Desktop\ComfyUI-Shared\models"
+)
+
+$ErrorActionPreference = "Stop"
+$root = Join-Path $PSScriptRoot "instance"
+$comfy = Join-Path $root "ComfyUI"
+$nodesFile = Join-Path $PSScriptRoot "custom_nodes.json"
+
+function Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
+function Native { param([scriptblock]$cmd) & $cmd; if ($LASTEXITCODE -ne 0) { throw "command failed ($LASTEXITCODE): $cmd" } }
+
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "uv not found. Install with: winget install astral-sh.uv" }
+# keep uv's Python inside the repo: its default (%APPDATA%\uv\python) is virtualized per app on Windows
+# (e.g. when installed from the Claude desktop app), and the venv then fails to start from any other terminal
+$env:UV_PYTHON_INSTALL_DIR = Join-Path $PSScriptRoot "python"
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "git not found" }
+New-Item -ItemType Directory -Force $root | Out-Null
+
+Step "ComfyUI $ComfyRef ($ComfyRemote)"
+if (-not (Test-Path (Join-Path $comfy ".git"))) {
+    Native { git clone --quiet https://github.com/comfyanonymous/ComfyUI.git $comfy }
+}
+Native { git -C $comfy fetch --quiet --tags origin }
+if ($ComfyRemote -ne "origin") {
+    if ((git -C $comfy remote) -contains "pinned") { Native { git -C $comfy remote set-url pinned $ComfyRemote } }
+    else { Native { git -C $comfy remote add pinned $ComfyRemote } }
+    Native { git -C $comfy fetch --quiet pinned }
+}
+Native { git -C $comfy -c advice.detachedHead=false checkout --quiet $ComfyRef }
+
+Step "Python 3.12 venv"
+$py = Join-Path $comfy ".venv\Scripts\python.exe"
+if (-not (Test-Path $py)) { Native { uv venv --python 3.12 (Join-Path $comfy ".venv") } }
+
+Step "PyTorch ($TorchIndex)"
+Native { uv pip install --python $py torch torchvision torchaudio --index-url $TorchIndex }
+
+Step "ComfyUI requirements"
+Native { uv pip install --python $py -r (Join-Path $comfy "requirements.txt") }
+
+Step "Custom nodes"
+if (Test-Path $nodesFile) {
+    $nodes = Get-Content $nodesFile -Raw | ConvertFrom-Json
+    foreach ($n in $nodes) {
+        $dest = Join-Path $comfy "custom_nodes\$($n.name)"
+        if (-not (Test-Path (Join-Path $dest ".git"))) { Native { git clone --quiet $n.repo $dest } }
+        Native { git -C $dest fetch --quiet origin }
+        Native { git -C $dest -c advice.detachedHead=false checkout --quiet $n.commit }
+        $req = Join-Path $dest "requirements.txt"
+        if (Test-Path $req) { Native { uv pip install --python $py -r $req } }
+        Write-Host "   $($n.name) @ $($n.commit)"
+    }
+}
+
+Step "Asset Forge nodes"
+# our own small nodes (e.g. loading a mesh file from disk for the paint workflow), linked so edits apply live
+$forgeNodes = Join-Path $comfy "custom_nodes\forge_nodes"
+# an empty plain folder left behind (e.g. a backup/restore that dropped the junction) hides the nodes: replace it
+if ((Test-Path $forgeNodes) -and -not (Get-Item $forgeNodes).LinkType -and -not (Test-Path (Join-Path $forgeNodes "__init__.py"))) {
+    Remove-Item $forgeNodes -Recurse -Force
+}
+if (-not (Test-Path $forgeNodes)) {
+    New-Item -ItemType Junction -Path $forgeNodes -Target (Join-Path $PSScriptRoot "custom_nodes\forge_nodes") | Out-Null
+}
+
+Step "extra_model_paths.yaml -> $SharedModels"
+if (-not (Test-Path $SharedModels)) {
+    Write-Warning "shared models folder not found; the instance will only use its own models folder"
+} else {
+    $folders = "checkpoints","classifiers","clip_vision","configs","controlnet","diffusers","diffusion_models","embeddings",
+               "gligen","hypernetworks","latent_upscale_models","loras","model_patches","audio_encoders","photomaker",
+               "style_models","text_encoders","upscale_models","background_removal","frame_interpolation",
+               "geometry_estimation","optical_flow","detection","vae","vae_approx","clip","unet"
+    $lines = @("# Generated by comfy\install.ps1 - shares models with Comfy Desktop", "comfy_desktop_shared:",
+               "  base_path: '$SharedModels'", "  is_default: true")
+    foreach ($f in $folders) { $lines += "  ${f}: ${f}/" }
+    Set-Content -Path (Join-Path $comfy "extra_model_paths.yaml") -Value $lines -Encoding utf8
+}
+
+Step "Check"
+Native { & $py -c "import torch; print('torch', torch.__version__, '| cuda', torch.version.cuda, '| gpu', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'NONE')" }
+Write-Host "Done. Start with: powershell -File comfy\start.ps1" -ForegroundColor Green

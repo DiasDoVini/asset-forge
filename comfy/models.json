@@ -1,0 +1,51 @@
+{
+  "hunyuan3d-2.1": {
+    "description": "Hunyuan3D 2.1 shape model (DiT + DINOv2 image encoder + VAE in one file). Image -> mesh. Default for 3d.image_to_3d.",
+    "folder": "checkpoints",
+    "file": "hunyuan_3d_v2.1.safetensors",
+    "url": "https://huggingface.co/Comfy-Org/hunyuan3D_2.1_repackaged/resolve/main/hunyuan_3d_v2.1.safetensors",
+    "default": true
+  },
+  "hunyuan3d-2mv": {
+    "description": "Hunyuan3D 2.0 multi-view (front/left/back/right images -> mesh).",
+    "folder": "checkpoints",
+    "file": "hunyuan3d-dit-v2-mv_fp16.safetensors",
+    "url": "https://huggingface.co/Comfy-Org/hunyuan3D_2.0_repackaged/resolve/main/split_files/hunyuan3d-dit-v2-mv_fp16.safetensors",
+    "default": false
+  },
+  "qwen-image-edit-2511": {
+    "description": "Qwen-Image-Edit 2511 (fp8). Instruction-based image editing; used by 3d.ai_edit and the 2D edit pipelines.",
+    "folder": "diffusion_models",
+    "file": "qwen_image_edit_2511_fp8mixed.safetensors",
+    "url": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+    "default": false
+  },
+  "qwen-2.5-vl-7b": {
+    "description": "Qwen2.5-VL 7B text encoder (fp8) for Qwen-Image-Edit.",
+    "folder": "text_encoders",
+    "file": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+    "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+    "default": false
+  },
+  "hunyuan3d-paint-2.1": {
+    "description": "Hunyuan3D 2.1 PBR paint UNet (converted from tencent/Hunyuan3D-2.1). Install with: comfy\\instance\\ComfyUI\\.venv\\Scripts\\python.exe comfy\\convert_hunyuan_paint.py",
+    "folder": "diffusion_models",
+    "file": "hunyuan3d-paintpbr-v2-1.safetensors",
+    "url": null,
+    "default": false
+  },
+  "hunyuan3d-paint-2.1-vae": {
+    "description": "Hunyuan3D 2.1 paint VAE (converted by the same script).",
+    "folder": "vae",
+    "file": "hunyuan3d_paintpbr_v2_1_vae.safetensors",
+    "url": null,
+    "default": false
+  },
+  "birefnet": {
+    "description": "Background removal (already shipped with Comfy Desktop).",
+    "folder": "background_removal",
+    "file": "birefnet.safetensors",
+    "url": null,
+    "default": false
+  }
+}
